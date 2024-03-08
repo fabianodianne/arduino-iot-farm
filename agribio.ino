@@ -1,176 +1,172 @@
-#include <dht.h>
+#include <DHT.h>
 #include <SoftwareSerial.h>
 
-dht DHT;
-#define DHT11_PIN 7
+#define DHTPIN 2
+#define DHTTYPE DHT22
 
-SoftwareSerial espSerial(2, 3); 
-SoftwareSerial sim(12, 11); 
-String number = "+639385166917";
+DHT dht(DHTPIN, DHTTYPE);
 
-int sensor_pin = A0;
-int relayPin = 8;
-int trig = 9;
-int echo = 10;
-int timeInMicro;
+const char* ssid = "PLDTHOMEFIBR5vGz3";
+const char* password = "PLDTWIFIzr3VV";
+
+SoftwareSerial sim(12, 11);
+const String number = "639451722389";
+
+const float minTemperatureForWatering = 25.0;
+const float maxHumidityForWatering = 70.0;
+const int sensor_pin = A0, relayPin = 8, trig = 9, echo = 10;
 float distanceInCm;
-float percentage;
-unsigned long lastRelayChangeTime = 0;
-unsigned long relayOnDuration = 0;
-
-void resetWiFiModule() {
-  espSerial.println("AT+RST"); // Send reset command to ESP8266 module
-  delay(1000); // Wait for module to reset
-}
+int relayOnTimer, lastRelayChangeTime;
+unsigned char check_connection = 0;
 
 void setup() {
-  resetWiFiModule(); // Reset Wi-Fi module at the beginning of the setup
+  Serial.begin(9600);
+  delay(100);
+  sim.begin(9600);
+  
+  sim.println("AT+CMGF=1");
+  delay(200);
 
+  checkSIMStatus();
+
+  dht.begin();
   pinMode(relayPin, OUTPUT);
   digitalWrite(relayPin, HIGH);
-  Serial.begin(9600);
-  sim.begin(9600);
-  espSerial.begin(115200); // Initialize ESP8266 serial communication
-
   pinMode(sensor_pin, INPUT);
   pinMode(trig, OUTPUT);
   pinMode(echo, INPUT);
-
-  // Connect to Wi-Fi
-  sendCommand("AT+RST"); // Reset the ESP8266 module
-  delay(1000);
-  sendCommand("AT+CWMODE=1"); // Set ESP8266 to Station mode
-  delay(1000);
-  sendCommand("AT+CWJAP=\"PLDTHOMEFIBR5vGz3\",\"PLDTWIFIzr3VV\""); // Connect to Wi-Fi network
-
 }
 
 void loop() {
-  Serial.println("\n---------------------------------------------------------------------");
+  receiveMessage();
 
-  checkWiFiConnection(); // Check if ESP8266 is connected to Wi-Fi
-  delay(1000);
-
-  receiveMessage(); // Check for incoming SMS commands
-  checkSerialCommands(); // Check for serial commands
+  delay(2000);
   
-  // Check SIM card status
-  // checkSIMStatus();
-
-  if (Serial.available()) {
-    // Read input from serial monitor
-    String command = Serial.readStringUntil('\n');
-    command.trim();
-
-    // Send command to ESP8266
-    sendCommand(command);
-  }
-
-  if (espSerial.available()) {
-    // Read response from ESP8266
-    String response = espSerial.readStringUntil('\n');
-    response.trim();
-
-    // Print response to serial monitor
-    Serial.println(response);
-  }
+  unsigned long currentMillis = millis();
   
-  readSoilMoisture();
-  readTemperatureAndHumidity();
-  measureWaterLevel();
-  
-  // Check if it's time to turn off the relay
-  if (millis() - lastRelayChangeTime >= relayOnDuration && digitalRead(relayPin) == LOW) {
+  if (getSoilMoistureStatus() == "wet" && digitalRead(relayPin) == LOW) {
     digitalWrite(relayPin, HIGH);
     Serial.println("Water turned off automatically");
   }
+
+  if(measureWaterLevel() < 20) {
+    digitalWrite(relayPin, HIGH);
+    Serial.println("Warning! Water level is below 20%. Please refill the water tank.");
+  }
+
+  if (checkHumidityAndTemp() && getSoilMoistureStatus() == "dry" && measureWaterLevel() > 20) {
+    Serial.println("DILIGAN ANG HALAMAN!");
+  }
+
+  printStatus();
+  
+  delay(1000);
 }
 
-void checkWiFiConnection() {
-  espSerial.println("AT+CWJAP?"); // Send command to check Wi-Fi connection status
-  delay(1000); // Wait for response
-  
-  if (espSerial.find("OK")) {
-    if (espSerial.find("WIFI GOT IP")) {
-      Serial.println("ESP8266 is connected to Wi-Fi");
-    } else {
-      Serial.println("ESP8266 is not connected to Wi-Fi");
-    }
-  } else {
-    Serial.println("ESP8266 is not responding");
+void printStatus() {
+  Serial.print("Soil Moisture: ");
+  Serial.println(getSoilMoistureStatus());
+  Serial.print("Temperature: ");
+  Serial.print(dht.readTemperature());
+  Serial.println("°C");
+  Serial.print("Humidity: ");
+  Serial.print(dht.readHumidity());
+  Serial.println("%");
+  Serial.print("Water Level: ");
+  Serial.print(measureWaterLevel());
+  Serial.println("%\n");
+}
+
+// ------------------------------------------------------------------------------------------------
+
+void checkSIMStatus() {
+  sim.println("AT+CNUM");
+  delay(1000);
+  while (sim.available()) {
+    String response = sim.readStringUntil('\n');
+    response.trim();
+    Serial.println(response);
   }
 }
 
 void receiveMessage() {
   sim.println("AT+CMGF=1");
-  delay(200);
-  sim.println("AT+CNMI=1, 2, 0, 0, 0");
-  delay(200);
-  
-  if (sim.available() > 0) {
-    String receivedMessage = sim.readStringUntil('\n');
+  delay(1000);
+
+  sim.println("AT+CNMI=2,2,0,0,0");
+  delay(1000);
+
+  while (sim.available() > 0) {
+    String receivedMessage = sim.readStringUntil("\n\n");
     receivedMessage.trim();
-    
-    if (receivedMessage.equals("s")) {
-      sendMessage();
-    } else if (receivedMessage.startsWith("n")) {
-      setRelayDuration(receivedMessage);
-      digitalWrite(relayPin, LOW);
-      lastRelayChangeTime = millis(); // Reset the timer
-      sendMessageConfirmation("Water turned on for " + String(relayOnDuration / 60000) + " mins");
-      Serial.println("Water turned on");
-    } else if (receivedMessage.equals("f")) {
-      digitalWrite(relayPin, HIGH);
-      sendMessageConfirmation("Water turned off");
+    if (receivedMessage.indexOf("+CMT:") != -1) {
+      Serial.println("receivedMessage: " + receivedMessage);
+      sim.readStringUntil('+'); 
+      String senderNumber = sim.readStringUntil('"');
+      senderNumber.trim();
+      senderNumber.replace("+", "");
+
+      sim.readStringUntil('"'); 
+      sim.readStringUntil('\n'); 
+      
+      String smsContent = sim.readStringUntil('\n');
+      smsContent.trim();
+
+      Serial.println("From: " + senderNumber);
+      Serial.println("SMS Content: " + smsContent);
+
+      if (smsContent.indexOf("status") != -1) {
+        sendMessage(senderNumber);
+      } else if (smsContent.indexOf("on") != -1) {
+        if (smsContent.startsWith("on ")) {
+          int spaceIndex = smsContent.indexOf(" ");
+          float timer = smsContent.substring(spaceIndex + 1).toFloat();
+          int relayOnTimer = timer * 60 * 60 * 1000;
+          if (timer < 1) {
+              relayOnTimer = timer * 60 * 1000; 
+          }
+          setRelayTimer(String(timer));
+          digitalWrite(relayPin, LOW);
+          if (timer >= 1) {
+              sendSMSConfirmation(senderNumber, "Water will turn on in " + String(timer) + " hour(s)");
+          } else {
+              sendSMSConfirmation(senderNumber, "Water will turn on in " + String(timer * 60) + " minute(s)");
+          }
+        } else {
+          digitalWrite(relayPin, LOW);
+          sendSMSConfirmation(senderNumber, "Water is turned on.");
+        }
+      } else if (smsContent.indexOf("off") != -1) {
+        digitalWrite(relayPin, HIGH);
+        sendSMSConfirmation(senderNumber, "Water turned off");
+      }
     }
   }
 }
 
-void checkSerialCommands() {
-  if (Serial.available() > 0) {
-    String serialCommand = Serial.readStringUntil('\n');
-    serialCommand.trim();
-    
-    if (serialCommand.equals("s")) {
-      sendMessage();
-    } else if (serialCommand.equals("on")) {
-      setDefaultRelayDuration();
-      digitalWrite(relayPin, LOW);
-      lastRelayChangeTime = millis(); // Reset the timer
-      sendMessageConfirmation("Water turned on for " + String(relayOnDuration / 60000) + " mins");
-    } else if (serialCommand.equals("off")) {
-      digitalWrite(relayPin, HIGH);
-      sendMessageConfirmation("Water turned off");
-    } else if (serialCommand.startsWith("on ")) {
-      setRelayDuration(serialCommand);
-      digitalWrite(relayPin, LOW);
-      lastRelayChangeTime = millis(); // Reset the timer
-      sendMessageConfirmation("Water turned on for " + String(relayOnDuration / 60000) + " mins");
-    }
-  }
+void sendMessage(const String& number) {
+  String message = "Soil Moisture: " + getSoilMoistureStatus() + "\n";
+  message += "Temperature: " + String(dht.readTemperature()) + "°C\n";
+  message += "Humidity: " + String(dht.readHumidity()) + "%\n";
+  message += "Water Level: " + String(measureWaterLevel()) + "%\n";
+  message += digitalRead(relayPin) == HIGH ? "Water Sprinker is OFF" : "Water Sprinker is ON";
+  sendSMS(number, message);
+  Serial.println("SMS Sent to: " + number);
+  Serial.println("Message:\n" + message);
 }
 
-void sendMessage() {
+void sendSMS(String recipientNumber, String message) {
   sim.println("AT+CMGF=1");
   delay(200);
-  sim.println("AT+CMGS=\"" + number + "\"\r");
+  sim.println("AT+CMGS=\"" + recipientNumber + "\"\r");
   delay(200);
-  
-  String message = "Soil Moisture: " + getSoilMoistureStatus() + "\n";
-  message += "Temperature: " + String(DHT.temperature) + "C\n";
-  message += "Humidity: " + String(DHT.humidity) + "%\n";
-  message += "Water Level: " + String(percentage) + "%\n";
-  
   sim.print(message);
   sim.println((char)26);
   delay(200);
-
-  Serial.println("SMS Received:\n" + message);
 }
 
-
-void sendMessageConfirmation(String confirmation) {
-  Serial.println(confirmation); // Print confirmation message to Serial
+void sendSMSConfirmation(String number, String confirmation) {
+  Serial.println(confirmation);
   sim.println("AT+CMGF=1");
   delay(200);
   sim.println("AT+CMGS=\"" + number + "\"\r");
@@ -181,80 +177,52 @@ void sendMessageConfirmation(String confirmation) {
   delay(200);
 }
 
-String getSoilMoistureStatus() {
-  int sensor_data = analogRead(sensor_pin);
-  if (sensor_data >= 1000) {
-    return "No moisture";
-  } else if (sensor_data >= 701 && sensor_data <= 999) {
-    return "Medium moisture";
-  } else if (sensor_data <= 700) {
-    return "Soil is wet";
+// ------------------------------------------------------------------------------------------------
+void setRelayTimer(String command) {
+  if (command.indexOf(" ") != -1) {
+    int spaceIndex = command.indexOf(" ");
+    String timerString = command.substring(spaceIndex + 1);
+    relayOnTimer = timerString.toInt() * 60000;
   }
 }
 
-void readTemperatureAndHumidity() {
-  int chk = DHT.read11(DHT11_PIN);
-  Serial.print("Temperature = ");
-  Serial.println(DHT.temperature);
-  Serial.print("Humidity = ");
-  Serial.println(DHT.humidity);
-  delay(3000);
+// ------------------------------------------------------------------------------------------------
+int checkHumidityAndTemp() {
+  float humidity = dht.readHumidity();
+  float temperature = dht.readTemperature();
+
+  if (isnan(humidity) || isnan(temperature)) {
+    Serial.println("Failed to read from DHT sensor!");
+    return;
+  }
+
+  // Check if it's best to water the plants based on temperature and humidity
+  if (temperature >= minTemperatureForWatering && humidity <= maxHumidityForWatering) {
+    return 1;
+  } else {
+    return 0;
+  }
 }
 
-void readSoilMoisture() {
+String getSoilMoistureStatus() {
   int sensor_data = analogRead(sensor_pin);
-  Serial.print("Soil Moisture: ");
-  Serial.println(getSoilMoistureStatus());
+  if (sensor_data >= 1000) {
+    return "dry";
+  } else if (sensor_data >= 701 && sensor_data <= 999) {
+    return "medium";
+  } else if (sensor_data <= 700) {
+    return "wet";
+  }
 }
 
-void measureWaterLevel() {
+int measureWaterLevel() {
   digitalWrite(trig, LOW);
   delayMicroseconds(2);
   digitalWrite(trig, HIGH);
   delayMicroseconds(10);
   digitalWrite(trig, LOW);
-  timeInMicro = pulseIn(echo, HIGH);
+  int timeInMicro = pulseIn(echo, HIGH);
   distanceInCm = timeInMicro / 29.0 / 2.0;
-  float adjustedDistance = distanceInCm * 1.1;
-  percentage = max(0.0, min(100.0, 100.0 - (distanceInCm / 50.0 * 100.0))); // Clamp percentage to range [0, 100]
-  Serial.print("Water percentage: ");
-  Serial.print(percentage);
-  Serial.println("%");
-  delay(1000);
+  int percentage = max(0.0, min(100.0, 100.0 - (distanceInCm / 50.0 * 100.0)));
+  return percentage;
 }
-
-void setRelayDuration(String command) {
-  if (command.indexOf(" ") != -1) { // Check if duration is provided
-    int spaceIndex = command.indexOf(" ");
-    String durationString = command.substring(spaceIndex + 1); // Extract duration substring
-    relayOnDuration = durationString.toInt() * 60000; // Convert duration to milliseconds
-  } else {
-    // Set default duration to 3 minutes (180000 milliseconds) if no duration is provided
-    relayOnDuration = 180000;
-  }
-}
-
-void setDefaultRelayDuration() {
-  // Set default duration to 3 minutes (180000 milliseconds)
-  relayOnDuration = 180000;
-}
-
-void sendCommand(String command) {
-  espSerial.println(command); // Send command to ESP8266
-  delay(500); // Wait for ESP8266 to respond
-  while (espSerial.available()) {
-    Serial.write(espSerial.read()); // Print response from ESP8266 for debugging
-  }
-}
-
-void checkSIMStatus() {
-  sim.println("AT"); // Send AT command to check SIM card status
-  delay(1000); // Wait for response
-
-  if (sim.find("OK")) {
-    Serial.println("SIM card is ready");
-  } else {
-    Serial.println("SIM card not detected or not responding");
-  }
-}
-
