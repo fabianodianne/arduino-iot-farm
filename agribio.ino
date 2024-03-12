@@ -4,27 +4,28 @@
 #define DHTPIN 2
 #define DHTTYPE DHT22
 
-DHT dht(DHTPIN, DHTTYPE);
+#define ARDUINO_RX 0
+#define ARDUINO_TX 1
 
-const char* ssid = "PLDTHOMEFIBR5vGz3";
-const char* password = "PLDTWIFIzr3VV";
+SoftwareSerial arduinoSerial(ARDUINO_RX, ARDUINO_TX);
+DHT dht(DHTPIN, DHTTYPE); // Initialize the DHT sensor
 
-SoftwareSerial sim(12, 11);
-const String number = "639451722389";
+SoftwareSerial sim(12, 11); // Initialize software serial for SIM module
+const String number = "639451722389"; // Phone number for SMS notifications
 
-const float minTemperatureForWatering = 25.0;
-const float maxHumidityForWatering = 70.0;
-const int sensor_pin = A0, relayPin = 8, trig = 9, echo = 10;
-float distanceInCm;
-int relayOnTimer, lastRelayChangeTime;
-unsigned char check_connection = 0;
+const float minTemperatureForWatering = 25.0; // Minimum temperature for watering
+const float maxHumidityForWatering = 70.0; // Maximum humidity for watering
+const int sensor_pin = A0, relayPin = 8, trig = 9, echo = 10; // Pin assignments
+float distanceInCm; // Variable to store distance in centimeters
+int relayOnTimer = 0, lastRelayChangeTime = 0; // Variables for relay timer
 
 void setup() {
   Serial.begin(9600);
   delay(100);
   sim.begin(9600);
-  
-  sim.println("AT+CMGF=1");
+  arduinoSerial.begin(9600);
+
+  sim.println("AT+CMGF=1"); // Set SMS mode to text
   delay(200);
 
   checkSIMStatus();
@@ -38,115 +39,179 @@ void setup() {
 }
 
 void loop() {
-  receiveMessage();
+  receiveMessage(); // Receive SMS messages
+  checkSerialCommands(); // Check for serial commands
+  delay(1000);
+  printStatus();
 
-  delay(2000);
+  delay(1000);
+
+  // Check if it's time to turn on the water
+  // if (millis() - lastRelayChangeTime >= relayOnTimer  && digitalRead(relayPin) == HIGH) {
+  //     // Activate the relay
+  //     Serial.println("Timer on");
+  //     digitalWrite(relayPin, LOW);
+  //     lastRelayChangeTime = millis(); 
+  // }
   
-  unsigned long currentMillis = millis();
-  
+  // Turn off watering if soil is wet
   if (getSoilMoistureStatus() == "wet" && digitalRead(relayPin) == LOW) {
     digitalWrite(relayPin, HIGH);
-    Serial.println("Water turned off automatically");
+    // Serial.println("Water turned off automatically");
   }
 
-  if(measureWaterLevel() < 20) {
+  // Send warning if water level is low
+  if(measureWaterLevel() < 20) { 
     digitalWrite(relayPin, HIGH);
-    Serial.println("Warning! Water level is below 20%. Please refill the water tank.");
+    // Serial.println("Warning! Water level is below 20%. Please refill the water tank.");
   }
 
-  if (checkHumidityAndTemp() && getSoilMoistureStatus() == "dry" && measureWaterLevel() > 20) {
-    Serial.println("DILIGAN ANG HALAMAN!");
+  // Check humidity, temperature, soil moisture, and water level to determine if watering is needed
+  if (checkHumidityAndTemp() && getSoilMoistureStatus() == "dry" && measureWaterLevel() > 20 && digitalRead(relayPin) == HIGH) {
+    // Serial.println("Water the plants!");
   }
-
-  printStatus();
   
   delay(1000);
 }
 
+// ------------------------------------------------------------------------------------------------
+
+void checkSerialCommands() {
+  if (arduinoSerial.available() > 0) {
+    String data = arduinoSerial.readStringUntil('\n');
+
+    if (data.equals("on")) {
+      digitalWrite(relayPin, LOW);
+      Serial.println("Component turned on");
+    } else if (data.equals("off")) {
+      digitalWrite(relayPin, HIGH);
+      Serial.println("Water turned off");
+    }
+  }
+}
+
+// -----------------------------------------------------------------------------------
+
 void printStatus() {
-  Serial.print("Soil Moisture: ");
-  Serial.println(getSoilMoistureStatus());
-  Serial.print("Temperature: ");
-  Serial.print(dht.readTemperature());
-  Serial.println("°C");
-  Serial.print("Humidity: ");
-  Serial.print(dht.readHumidity());
-  Serial.println("%");
-  Serial.print("Water Level: ");
-  Serial.print(measureWaterLevel());
-  Serial.println("%\n");
+  // Read sensor data
+  int soilMoisture = analogRead(sensor_pin);
+  float temperature = dht.readTemperature();
+  int humidity = dht.readHumidity();
+  int waterLevel = measureWaterLevel();
+  String waterSwitch = digitalRead(relayPin) == HIGH ? "off" : "on";
+
+  // Construct the data string
+  String sensorData = String(soilMoisture) + "," + String(temperature) + "," + String(humidity) + "," + String(waterLevel) + "," + waterSwitch;
+
+  // Send the data to NodeMCU
+  Serial.println(sensorData);
 }
 
 // ------------------------------------------------------------------------------------------------
 
 void checkSIMStatus() {
-  sim.println("AT+CNUM");
+  sim.println("AT+CNUM"); // Send command to get SIM card number
+
   delay(1000);
   while (sim.available()) {
     String response = sim.readStringUntil('\n');
     response.trim();
-    Serial.println(response);
+    Serial.println(response); // Print SIM status response
   }
 }
 
+// Function to receive SMS messages
 void receiveMessage() {
-  sim.println("AT+CMGF=1");
+  sim.println("AT+CMGF=1"); // Set SMS mode to text
   delay(1000);
 
-  sim.println("AT+CNMI=2,2,0,0,0");
+  sim.println("AT+CNMI=2,2,0,0,0"); // Set module to forward received messages to Arduino
   delay(1000);
 
   while (sim.available() > 0) {
-    String receivedMessage = sim.readStringUntil("\n\n");
+    String receivedMessage = sim.readStringUntil("\n\n\n\n");
     receivedMessage.trim();
     if (receivedMessage.indexOf("+CMT:") != -1) {
       Serial.println("receivedMessage: " + receivedMessage);
-      sim.readStringUntil('+'); 
-      String senderNumber = sim.readStringUntil('"');
+
+      int start = receivedMessage.indexOf('\"') + 1;
+      int end = receivedMessage.indexOf('\"', start);
+
+      // Extract sender's number from received message
+      String senderNumber = receivedMessage.substring(start, end);
       senderNumber.trim();
       senderNumber.replace("+", "");
 
-      sim.readStringUntil('"'); 
-      sim.readStringUntil('\n'); 
-      
-      String smsContent = sim.readStringUntil('\n');
+       // Find the starting index of the SMS content
+      int contentStart = receivedMessage.indexOf('\n', end) + 1;
+
+      // Extract the SMS content
+      String smsContent = receivedMessage.substring(contentStart);
       smsContent.trim();
 
-      Serial.println("From: " + senderNumber);
-      Serial.println("SMS Content: " + smsContent);
+      Serial.println("\nFrom: " + senderNumber);
+      Serial.println("SMS Content: " + smsContent + "\n\n");
 
-      if (smsContent.indexOf("status") != -1) {
-        sendMessage(senderNumber);
-      } else if (smsContent.indexOf("on") != -1) {
-        if (smsContent.startsWith("on ")) {
-          int spaceIndex = smsContent.indexOf(" ");
-          float timer = smsContent.substring(spaceIndex + 1).toFloat();
-          int relayOnTimer = timer * 60 * 60 * 1000;
-          if (timer < 1) {
-              relayOnTimer = timer * 60 * 1000; 
-          }
-          setRelayTimer(String(timer));
-          digitalWrite(relayPin, LOW);
-          if (timer >= 1) {
-              sendSMSConfirmation(senderNumber, "Water will turn on in " + String(timer) + " hour(s)");
-          } else {
-              sendSMSConfirmation(senderNumber, "Water will turn on in " + String(timer * 60) + " minute(s)");
-          }
-        } else {
-          digitalWrite(relayPin, LOW);
-          sendSMSConfirmation(senderNumber, "Water is turned on.");
-        }
-      } else if (smsContent.indexOf("off") != -1) {
-        digitalWrite(relayPin, HIGH);
-        sendSMSConfirmation(senderNumber, "Water turned off");
-      }
+      processCommand(senderNumber, smsContent);
     }
   }
 }
 
+void processCommand(String senderNumber, String smsContent) {
+  if (smsContent.indexOf("status") != -1) {
+    sendMessage(senderNumber);
+  } else if (smsContent.indexOf("on") != -1) {
+    // Turn on watering based on received command
+    if (smsContent.startsWith("on ")) {
+      waterTimer(smsContent, senderNumber);
+    } else {
+      digitalWrite(relayPin, LOW);
+      sendSMSConfirmation(senderNumber, "Water is turned on.");
+    }
+  } else if (smsContent.indexOf("off") != -1) {
+    digitalWrite(relayPin, HIGH);
+    sendSMSConfirmation(senderNumber, "Water turned off");
+  }
+}
+
+void waterTimer(String command, String senderNumber) {
+  int spaceIndex = command.indexOf(" ");
+  int colonIndex = command.indexOf(":");
+  int hours, minutes;
+
+  // Extract hours and minutes from the SMS content
+  if (colonIndex != -1) {
+      hours = command.substring(spaceIndex + 1, colonIndex).toInt();
+      minutes = command.substring(colonIndex + 1).toInt();
+  } else {
+      hours = command.substring(spaceIndex + 1).toInt();
+      minutes = 0; // Default to 0 minutes if no colon is specified
+  }
+
+  // Calculate total time in minutes and convert to milliseconds
+  unsigned long delayMillis = (hours * 60 + minutes) * 60000;
+
+  // Set the relay timer and activate the relay
+  setRelayTimer(delayMillis);
+  digitalWrite(relayPin, LOW);
+
+  // Send confirmation SMS
+  // sendSMSConfirmation(senderNumber, "Water will turn on in " + String(hours) + " hour(s) and " + String(minutes) + " minute(s)");
+  Serial.println( "Water will turn on in " + String(hours) + " hour(s) and " + String(minutes) + " minute(s)");
+}
+
+void setRelayTimer(unsigned long delayMillis) {
+    // Set the relay timer
+    relayOnTimer = delayMillis;
+    lastRelayChangeTime = millis(); // Record the time when the timer is set
+}
+
+// ------------------------------------------------------------------------------------------------
+
 void sendMessage(const String& number) {
+  // Compose SMS message with sensor readings
   String message = "Soil Moisture: " + getSoilMoistureStatus() + "\n";
-  message += "Temperature: " + String(dht.readTemperature()) + "°C\n";
+  message += "Temperature: " + String(dht.readTemperature()) + " degrees\n";
   message += "Humidity: " + String(dht.readHumidity()) + "%\n";
   message += "Water Level: " + String(measureWaterLevel()) + "%\n";
   message += digitalRead(relayPin) == HIGH ? "Water Sprinker is OFF" : "Water Sprinker is ON";
@@ -177,16 +242,8 @@ void sendSMSConfirmation(String number, String confirmation) {
   delay(200);
 }
 
-// ------------------------------------------------------------------------------------------------
-void setRelayTimer(String command) {
-  if (command.indexOf(" ") != -1) {
-    int spaceIndex = command.indexOf(" ");
-    String timerString = command.substring(spaceIndex + 1);
-    relayOnTimer = timerString.toInt() * 60000;
-  }
-}
+// ---------------------------------------------------------------------------------------------------
 
-// ------------------------------------------------------------------------------------------------
 int checkHumidityAndTemp() {
   float humidity = dht.readHumidity();
   float temperature = dht.readTemperature();
