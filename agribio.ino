@@ -8,6 +8,7 @@
 #define ARDUINO_TX 1
 
 SoftwareSerial arduinoSerial(ARDUINO_RX, ARDUINO_TX);
+
 DHT dht(DHTPIN, DHTTYPE); // Initialize the DHT sensor
 
 SoftwareSerial sim(12, 11); // Initialize software serial for SIM module
@@ -23,6 +24,7 @@ void setup() {
   Serial.begin(9600);
   delay(100);
   sim.begin(9600);
+  delay(100);
   arduinoSerial.begin(9600);
 
   sim.println("AT+CMGF=1"); // Set SMS mode to text
@@ -39,20 +41,10 @@ void setup() {
 }
 
 void loop() {
-  receiveMessage(); // Receive SMS messages
-  checkSerialCommands(); // Check for serial commands
-  delay(1000);
+  receiveMessage();
   printStatus();
-
   delay(1000);
-
-  // Check if it's time to turn on the water
-  // if (millis() - lastRelayChangeTime >= relayOnTimer  && digitalRead(relayPin) == HIGH) {
-  //     // Activate the relay
-  //     Serial.println("Timer on");
-  //     digitalWrite(relayPin, LOW);
-  //     lastRelayChangeTime = millis(); 
-  // }
+  checkSerialCommands();
   
   // Turn off watering if soil is wet
   if (getSoilMoistureStatus() == "wet" && digitalRead(relayPin) == LOW) {
@@ -72,20 +64,24 @@ void loop() {
   }
   
   delay(1000);
+  
 }
 
 // ------------------------------------------------------------------------------------------------
 
 void checkSerialCommands() {
-  if (arduinoSerial.available() > 0) {
+  if (arduinoSerial.available()) {
     String data = arduinoSerial.readStringUntil('\n');
+    data.trim();
 
-    if (data.equals("on")) {
+    if(data.equals("s")) {
+      printStatus();
+    } else if (data.equals("on")) {
       digitalWrite(relayPin, LOW);
-      Serial.println("Component turned on");
+      sendSMSConfirmation(number, "Water is turned on.");
     } else if (data.equals("off")) {
       digitalWrite(relayPin, HIGH);
-      Serial.println("Water turned off");
+      sendSMSConfirmation(number, "Water turned off");
     }
   }
 }
