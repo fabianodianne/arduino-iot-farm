@@ -1,40 +1,42 @@
-### Agribio: Smart Watering System for Farms
+# Smart Plant Watering System with Arduino Uno R3 and NodeMCU
 
-Agribio is a project aimed at automating the watering process for farms using an Arduino-based system integrated with GSM communication capabilities.
+This project implements a smart plant watering system using an Arduino Uno R3 for sensor data processing and control, with the NodeMCU (ESP8266) board acting as a WiFi module for data transmission to a remote server or application.
 
-#### Features:
+## Features
 
-- **Smart Watering:** Agribio utilizes soil moisture sensors to determine the moisture levels in the soil and automatically waters the crops when needed.
-- **Remote Control:** Farmers can remotely control the watering system by sending SMS commands to the system. Commands include turning the water pump on or off and checking the status of soil moisture, temperature, humidity, and water level.
-- **Timer Functionality:** The system allows users to specify the duration for which the water pump should remain on. By default, the pump is set to run for 3 minutes, but users can customize the duration via SMS commands.
-- **App Integration:** In addition to SMS control, users can also control and check the status of the system using a mobile application connected to a Wi-Fi module. The app provides a user-friendly interface for managing the watering system remotely.
+1. **Remote Monitoring**: Monitor plant conditions remotely via the Blynk app, including temperature, humidity, soil moisture, and water level.
 
-#### Components:
+2. **Remote Control**: Control the water pump remotely through the Blynk app or SMS command to turn it on/off as needed.
 
-- **Arduino Board:** The brain of the system, responsible for reading sensor data, controlling the water pump, and handling communication with the GSM module.
-- **GSM Module:** Enables communication between the Arduino board and the user's mobile phone via SMS.
-- **Wi-Fi Module:** Allows integration with a mobile application for remote control and monitoring of the system.
-- **DHT11 Sensor:** Measures temperature and humidity levels in the environment.
-- **Soil Moisture Sensor:** Detects the moisture content in the soil to determine watering needs.
-- **Ultrasonic Sensor:** Measures the water level in the reservoir or tank.
-- **Relay Module:** Controls the water pump, allowing it to be turned on or off based on sensor readings and user commands.
+3. **Efficient Water Usage**: Optimize water usage by watering plants only when necessary, based on real-time environmental data.
 
-#### Code Overview:
+## Hardware Components
 
-The Arduino code provided implements the functionality described above. It reads sensor data, handles SMS commands received from the user, and controls the water pump accordingly. Additionally, it includes timer functionality to automatically turn off the water pump after a specified duration.
+- Arduino Uno R3
+- NodeMCU (ESP8266)
+- DHT22 temperature and humidity sensor
+- Soil moisture sensor
+- Ultrasonic sensor for water level measurement
+- Relay for water pump control
+- 12v Solenoid Water Vavle
 
-#### Usage:
+## Functionality
 
-1. **Installation:** Connect the Arduino board to the required sensors, the GSM module, and the Wi-Fi module. Ensure proper wiring and connections.
-2. **Setup:** Upload the provided Arduino code to the board using the Arduino IDE.
-3. **Operation:** Power on the system. It will automatically start monitoring soil moisture, temperature, humidity, and water level.
-4. **Remote Control:** Send SMS commands to the GSM module to control the watering system remotely. Available commands include:
-   - `water on`: Turns on the water pump for the default duration of 3 minutes.
-   - `water on <duration>`: Turns on the water pump for the specified duration in minutes.
-   - `water off`: Turns off the water pump.
-   - `status`: Retrieves the current status of the system, including soil moisture, temperature, humidity, and water level.
-5. **App Control:** Use the mobile application connected to the Wi-Fi module to control and monitor the system remotely.
+1. **Setup**: Connects the Arduino Uno R3 and NodeMCU to the WiFi network and initializes Blynk.
+2. **Main Loop**: Runs the Blynk communication loop on the NodeMCU and receives data from the Arduino Uno R3.
+3. **Receive Data Function**: Reads sensor data from the Arduino Uno R3, sends it to the NodeMCU via serial communication, and transmits it to the Blynk server.
 
-#### Contributors:
+## Usage
 
-- Dianne Mae P. Fabiano
+1. Upload the code to both the Arduino Uno R3 and the NodeMCU (ESP8266).
+2. Connect sensors to the Arduino Uno R3 and the water pump relay.
+3. Ensure both the Arduino Uno R3 and NodeMCU are powered on and properly connected.
+4. Open the Blynk app, load the "Agribio" template, and monitor/control the plant watering system remotely.
+
+## Note
+
+Ensure that the Blynk app is configured with the provided template ID and authentication token.
+
+For any issues or improvements, feel free to contact the developer.
+
+**Developer:** DIANNE MAE P. FABIANO
