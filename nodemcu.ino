@@ -68,7 +68,6 @@ void receiveData() {
     // Split the data string into individual sensor readings
     int index = data.indexOf(',');
     String soilMoisture = data.substring(0, index);
-    int moisture = mapSoilMoistureToPercentage(soilMoisture.toInt());
     data = data.substring(index + 1);
     
     index = data.indexOf(',');
@@ -87,7 +86,7 @@ void receiveData() {
     String switchState = data;
 
     // Send sensor readings to Blynk virtual pins
-    Blynk.virtualWrite(V0, moisture);
+    Blynk.virtualWrite(V0, soilMoisture.toInt());
     Blynk.virtualWrite(V1, temperature.toFloat());
     Blynk.virtualWrite(V2, humidity.toInt());
     Blynk.virtualWrite(V3, waterLevel.toInt());
@@ -101,11 +100,4 @@ void receiveData() {
       Blynk.virtualWrite(V4, 0);
     }
   }
-}
-
-
-int mapSoilMoistureToPercentage(int sensorData) {
-  // Map the analog value (0-1023) to a percentage range (0-100)
-  int mappedValue = map(sensorData, 0, 1023, 100, 0); // Inverted mapping to align with the desired logic
-  return mappedValue;
 }
