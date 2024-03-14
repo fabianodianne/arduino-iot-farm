@@ -13,10 +13,8 @@
 
 SoftwareSerial nodeSerial(NODE_RX, NODE_TX);
 
-const char* ssid = "PLDTHOMEFIBR5vGz3";
-const char* password = "PLDTWIFIzr3VV";
-
-bool isWaterOn = false;
+const char* ssid = "hotspot";
+const char* password = "fabiano99";
 
 void setup() {
   Serial.begin(9600);
@@ -56,18 +54,10 @@ void loop() {
 BLYNK_WRITE(BUTTON_PIN) {
   int buttonState = param.asInt(); // Read the button state from Blynk
 
-  if (buttonState == HIGH) {
-    // Toggle the water state
-    isWaterOn = !isWaterOn;
-
-    // Send command to turn water on or off
-    if (isWaterOn) {
-      nodeSerial.println("on"); // Command to turn water on
-      Serial.println("Water pump turned on");
-    } else {
-      nodeSerial.println("off"); // Command to turn water off
-      Serial.println("Water pump turned off");
-    }
+  if (buttonState == 1) {
+    nodeSerial.println("on"); 
+  } else {
+    nodeSerial.println("off");
   }
 }
 
@@ -102,11 +92,13 @@ void receiveData() {
     Blynk.virtualWrite(V2, humidity.toInt());
     Blynk.virtualWrite(V3, waterLevel.toInt());
 
+    switchState.trim();
+
     // Update the switch state on Blynk
-    if (switchState == "on") {
-      Blynk.virtualWrite(V4, HIGH);
+    if (switchState.equals("on")) {
+      Blynk.virtualWrite(V4, 1);
     } else {
-      Blynk.virtualWrite(V4, LOW);
+      Blynk.virtualWrite(V4, 0);
     }
   }
 }
@@ -117,4 +109,3 @@ int mapSoilMoistureToPercentage(int sensorData) {
   int mappedValue = map(sensorData, 0, 1023, 100, 0); // Inverted mapping to align with the desired logic
   return mappedValue;
 }
-
