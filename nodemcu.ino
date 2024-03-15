@@ -7,8 +7,8 @@
 #include <BlynkSimpleEsp8266.h>
 
 #define BLYNK_PRINT Serial
-#define NODE_RX D1
-#define NODE_TX D2
+#define NODE_RX D1 // Connect to ARDUINO_TX 5
+#define NODE_TX D2 // Connect to ARDUINO_RX 6
 #define BUTTON_PIN V4
 
 SoftwareSerial nodeSerial(NODE_RX, NODE_TX);

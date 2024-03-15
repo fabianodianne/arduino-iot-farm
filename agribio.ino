@@ -4,8 +4,8 @@
 #define DHTPIN 2
 #define DHTTYPE DHT22
 
-#define ARDUINO_RX 0
-#define ARDUINO_TX 1
+#define ARDUINO_RX 6 // Connect to NODE_TX D2
+#define ARDUINO_TX 5 // Connect to NODE_RX D1
 
 SoftwareSerial arduinoSerial(ARDUINO_RX, ARDUINO_TX);
 
@@ -20,7 +20,7 @@ const int sensor_pin = A0, relayPin = 8, trig = 9, echo = 10; // Pin assignments
 float distanceInCm; // Variable to store distance in centimeters
 
 void setup() {
-  Serial.begin(9600);
+  Serial.begin(115200);
   delay(100);
   sim.begin(9600);
   delay(100);
@@ -37,6 +37,8 @@ void setup() {
   pinMode(sensor_pin, INPUT);
   pinMode(trig, OUTPUT);
   pinMode(echo, INPUT);
+
+  sendMessage(number);
 }
 
 void loop() {
@@ -44,7 +46,7 @@ void loop() {
   printStatus();
   delay(1000);
   checkSerialCommands();
-  
+
   // Turn off watering if soil is wet
   if (getSoilMoistureStatus() >= 40 && digitalRead(relayPin) == LOW) {
     digitalWrite(relayPin, HIGH);
@@ -91,7 +93,7 @@ void printStatus() {
   String sensorData = String(soilMoisture) + "," + String(temperature) + "," + String(humidity) + "," + String(waterLevel) + "," + waterSwitch;
 
   // Send the data to NodeMCU
-  Serial.println(sensorData);
+  arduinoSerial.println(sensorData);
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -167,7 +169,7 @@ void sendMessage(const String& number) {
   message += "Humidity: " + String(dht.readHumidity()) + "%\n";
   message += "Water Level: " + String(measureWaterLevel()) + "%\n";
 
-  message += checkStatus() == 1 ? "\nBased on current conditions, it's a good time to water your plant." : "\nNo watering is required at the moment.";
+  message += checkStatus() == 1 ? "\nBased on current conditions, it's a good time to water your plant.\n" : "\nNo watering is required at the moment.\n";
   
   message += digitalRead(relayPin) == HIGH ? "\nWater Sprinker is OFF" : "Water Sprinker is ON";
 
