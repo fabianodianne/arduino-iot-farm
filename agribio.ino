@@ -6,10 +6,10 @@
 
 DHT dht(DHTPIN, DHTTYPE);
 
-#define SIM_TX 13
-#define SIM_RX 12
+#define SIM_TX 12
+#define SIM_RX 13
 
-SoftwareSerial sim(SIM_RX, SIM_TX);
+SoftwareSerial sim(SIM_TX, SIM_RX);
 const String number = "639451722389";
 
 const float minTemperatureForWatering = 25.0;
