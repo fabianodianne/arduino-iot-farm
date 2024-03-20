@@ -6,7 +6,10 @@
 
 DHT dht(DHTPIN, DHTTYPE);
 
-SoftwareSerial sim(12, 11);
+#define SIM_TX 13
+#define SIM_RX 12
+
+SoftwareSerial sim(SIM_RX, SIM_TX);
 const String number = "639451722389";
 
 const float minTemperatureForWatering = 25.0;
@@ -55,9 +58,7 @@ void checkSerialCommands() {
     String data = Serial.readStringUntil('\n');
     data.trim();
 
-    if(data.equals("s")) {
-      printStatus();
-    } else if (data.equals("on")) {
+    if (data.equals("on")) {
       digitalWrite(relayPin, LOW);
     } else if (data.equals("off")) {
       digitalWrite(relayPin, HIGH);
