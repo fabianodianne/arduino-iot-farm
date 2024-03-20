@@ -7,11 +7,7 @@
 #include <BlynkSimpleEsp8266.h>
 
 #define BLYNK_PRINT Serial
-#define NODE_RX D1 // Connect to ARDUINO_TX 5
-#define NODE_TX D2 // Connect to ARDUINO_RX 6
 #define BUTTON_PIN V4
-
-SoftwareSerial nodeSerial(NODE_RX, NODE_TX);
 
 const char* ssid = "hotspot";
 const char* password = "fabiano99";
@@ -19,7 +15,6 @@ const char* password = "fabiano99";
 void setup() {
   Serial.begin(9600);
   delay(100);
-  nodeSerial.begin(9600);
 
   // Connect to WiFi
   Serial.println();
@@ -44,10 +39,9 @@ void setup() {
 
 void loop() {
   Blynk.run();
+  delay(1000);
 
   receiveData();
-
-  delay(1000);
 }
 
 // Blynk function to handle changes to the button state
@@ -55,15 +49,15 @@ BLYNK_WRITE(BUTTON_PIN) {
   int buttonState = param.asInt(); // Read the button state from Blynk
 
   if (buttonState == 1) {
-    nodeSerial.println("on"); 
+    Serial.println("on");
   } else {
-    nodeSerial.println("off");
+    Serial.println("off");
   }
 }
 
 void receiveData() {
-  if (nodeSerial.available()) {
-    String data = nodeSerial.readStringUntil('\n'); // Read data from Arduino until newline character
+  if (Serial.available()) {
+    String data = Serial.readStringUntil('\n'); // Read data from Arduino until newline character
 
     // Split the data string into individual sensor readings
     int index = data.indexOf(',');
@@ -82,7 +76,6 @@ void receiveData() {
     String waterLevel = data.substring(0, index);
     data = data.substring(index + 1);
 
-    // Extract the switch state
     String switchState = data;
 
     // Send sensor readings to Blynk virtual pins
