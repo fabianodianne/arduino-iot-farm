@@ -9,13 +9,25 @@
 #define BLYNK_PRINT Serial
 #define BUTTON_PIN V4
 
-const char* ssid = "hotspot";
-const char* password = "fabiano99";
+const char* ssid = "";
+const char* password = "";
 
 void setup() {
   Serial.begin(9600);
   delay(100);
 
+  connectWifi();
+}
+
+void loop() {
+  Blynk.run();
+  delay(1000);
+
+  receiveData();
+}
+
+
+void connectWifi() {
   // Connect to WiFi
   Serial.println();
   Serial.print("Connecting to ");
@@ -35,13 +47,7 @@ void setup() {
   Serial.println(ssid);
   Serial.println("IP address: ");
   Serial.println(WiFi.localIP());
-}
 
-void loop() {
-  Blynk.run();
-  delay(1000);
-
-  receiveData();
 }
 
 // Blynk function to handle changes to the button state
