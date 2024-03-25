@@ -6,11 +6,10 @@
 
 DHT dht(DHTPIN, DHTTYPE);
 
-#define SIM_TX 13
-#define SIM_RX 12
+#define SIM_TX 12
+#define SIM_RX 13
 
-SoftwareSerial sim(SIM_RX, SIM_TX);
-const String number = "639451722389";
+SoftwareSerial sim(SIM_TX, SIM_RX);
 
 const float minTemperatureForWatering = 25.0;
 const float maxHumidityForWatering = 70.0; 
@@ -108,7 +107,6 @@ void receiveMessage() {
     String receivedMessage = sim.readStringUntil("\n\n");
     receivedMessage.trim();
     if (receivedMessage.indexOf("+CMT:") != -1) {
-
       int start = receivedMessage.indexOf('\"') + 1;
       int end = receivedMessage.indexOf('\"', start);
 
@@ -117,12 +115,18 @@ void receiveMessage() {
       senderNumber.trim();
       senderNumber.replace("+", "");
 
-       // Find the starting index of the SMS content
+        // Find the starting index of the SMS content
       int contentStart = receivedMessage.indexOf('\n', end) + 1;
 
       // Extract the SMS content
       String smsContent = receivedMessage.substring(contentStart);
       smsContent.trim();
+
+      String sender = "Sender: " + senderNumber;
+      String sms = "SMS Content: " + smsContent;
+
+      Serial.println(sender);
+      Serial.println(sms);
 
       processCommand(senderNumber, smsContent);
     }
@@ -132,7 +136,7 @@ void receiveMessage() {
 void processCommand(String senderNumber, String smsContent) {
   smsContent.toLowerCase(); 
 
-  if (smsContent.indexOf("status") != -1) {
+  if (smsContent.indexOf("status") != -1 || smsContent.indexOf("state") != -1 ) {
     sendMessage(senderNumber);
   } else if (smsContent.indexOf("on") != -1) {
     digitalWrite(relayPin, LOW);
