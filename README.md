@@ -18,7 +18,7 @@ This project implements a smart plant watering system using an Arduino Uno R3 fo
 - Soil moisture sensor
 - Ultrasonic sensor for water level measurement
 - Relay for water pump control
-- 12v Solenoid Water Vavle
+- 12v water pump
 
 ## Functionality
 
@@ -31,7 +31,7 @@ This project implements a smart plant watering system using an Arduino Uno R3 fo
 1. Upload the code to both the Arduino Uno R3 and the NodeMCU (ESP8266).
 2. Connect sensors to the Arduino Uno R3 and the water pump relay.
 3. Ensure both the Arduino Uno R3 and NodeMCU are powered on and properly connected.
-4. Open the Blynk app, load the "Agribio" template, and monitor/control the plant watering system remotely.
+4. Open the Blynk app, load the "Agrinova" template, and monitor/control the plant watering system remotely.
 
 ## Note
 
