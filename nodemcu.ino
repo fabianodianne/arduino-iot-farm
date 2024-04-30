@@ -9,8 +9,8 @@
 #define BLYNK_PRINT Serial
 #define BUTTON_PIN V4
 
-const char* ssid = "";
-const char* password = "";
+const char* ssid = "arduino";
+const char* password = "arduino123";
 
 void setup() {
   Serial.begin(9600);
@@ -21,7 +21,7 @@ void setup() {
 
 void loop() {
   Blynk.run();
-  delay(1000);
+  delay(100);
 
   receiveData();
 }
